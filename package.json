@@ -1,0 +1,27 @@
+{
+	"name": "eslint-plugin-hamber3",
+	"version": "0.4.4",
+	"description": "An ESLint plugin for Hamber v3 components.",
+	"keywords": [
+		"eslint",
+		"eslintplugin",
+		"hamber",
+		"hamberjs"
+	],
+	"files": [
+		"index.js"
+	],
+	"main": "index.js",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/hamberjs/eslint-plugin-hamber3.git"
+	},
+	"author": "NKDuy",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/hamberjs/eslint-plugin-hamber3/issues"
+	},
+	"peerDependencies": {
+		"hamber": "^3.0.0"
+	}
+}
