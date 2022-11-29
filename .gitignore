@@ -1,0 +1,6 @@
+/index.js
+/node_modules
+/package-lock.json
+/pnpm-lock.yaml
+/test/samples/*/actual.json
+/yarn.lock
