@@ -1,10 +1,15 @@
 export const processor_options = {};
 
 // find Linter instance
-const linter_path = Object.keys(require.cache).find(path => path.endsWith('/eslint/lib/linter/linter.js') || path.endsWith('\\eslint\\lib\\linter\\linter.js'));
-if (!linter_path) {
+const linter_paths = Object.keys(require.cache).filter(path => path.endsWith('/eslint/lib/linter/linter.js') || path.endsWith('\\eslint\\lib\\linter\\linter.js'));
+if (!linter_paths.length) {
 	throw new Error('Could not find ESLint Linter in require cache');
 }
+// There may be more than one instance of the linter when we're in a workspace with multiple directories.
+// We first try to find the one that's inside the same node_modules directory as this plugin.
+// If that can't be found for some reason, we assume the one we want is the last one in the array.
+const current_node_modules_path = __dirname.replace(/(?<=[/\\]node_modules[/\\]).*$/, '');
+const linter_path = linter_paths.find(path => path.startsWith(current_node_modules_path)) || linter_paths.pop();
 const { Linter } = require(linter_path);
 
 // patch Linter#verify
@@ -17,6 +22,12 @@ Linter.prototype.verify = function(code, config, options) {
 	processor_options.ignore_styles = settings['hamber3/ignore-styles'];
 	processor_options.compiler_options = settings['hamber3/compiler-options'];
 	processor_options.named_blocks = settings['hamber3/named-blocks'];
+	processor_options.typescript =
+		settings['hamber3/typescript'] === true
+			? require('typescript')
+			: typeof settings['hamber3/typescript'] === 'function'
+				? settings['hamber3/typescript']()
+				: settings['hamber3/typescript'];
 	// call original Linter#verify
 	return verify.call(this, code, config, options);
 };

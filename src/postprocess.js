@@ -1,10 +1,13 @@
+import { position_at } from './mapping.js';
 import { state, reset } from './state.js';
 import { get_line_offsets } from './utils.js';
 
 // transform a linting message according to the module/instance script info we've gathered
-const transform_message = ({ transformed_code }, { unoffsets, dedent, offsets, range }, message) => {
-	// strip out the start and end of the fix if they are not actually changes
+const transform_message = ({ transformed_code }, { unoffsets, dedent, indentation, offsets, range }, message) => {
+	let fix_pos_start;
+	let fix_pos_end;
 	if (message.fix) {
+		// strip out the start and end of the fix if they are not actually changes
 		while (message.fix.range[0] < message.fix.range[1] && transformed_code[message.fix.range[0]] === message.fix.text[0]) {
 			message.fix.range[0]++;
 			message.fix.text = message.fix.text.slice(1);
@@ -13,8 +16,17 @@ const transform_message = ({ transformed_code }, { unoffsets, dedent, offsets, r
 			message.fix.range[1]--;
 			message.fix.text = message.fix.text.slice(0, -1);
 		}
+		// If the fix spans multiple lines, add the indentation to each one
+		message.fix.text = message.fix.text.split('\n').join(`\n${indentation}`);
+		// The fix can span multiple lines and doesn't need to be on the same line
+		// as the lint message, so we can't just add total_offsets at message.line to it
+		// (see dedent-step below)
+		fix_pos_start = position_at(message.fix.range[0], transformed_code);
+		fix_pos_end = position_at(message.fix.range[1], transformed_code);
 	}
+
 	// shift position reference backward according to unoffsets
+	// (aka: throw out the generated code lines prior to the original code)
 	{
 		const { length, lines, last } = unoffsets;
 		if (message.line === lines) {
@@ -32,7 +44,9 @@ const transform_message = ({ transformed_code }, { unoffsets, dedent, offsets, r
 			message.fix.range[1] -= length;
 		}
 	}
+
 	// adjust position reference according to the previous dedenting
+	// (aka: re-add the stripped indentation)
 	{
 		const { offsets, total_offsets } = dedent;
 		message.column += offsets[message.line - 1];
@@ -40,11 +54,17 @@ const transform_message = ({ transformed_code }, { unoffsets, dedent, offsets, r
 			message.endColumn += offsets[message.endLine - 1];
 		}
 		if (message.fix) {
-			message.fix.range[0] += total_offsets[message.line];
-			message.fix.range[1] += total_offsets[message.line];
+			// We need the offset at the line relative to dedent's total_offsets. The dedents
+			// start at the point in the total transformed code where a subset of the code was transformed.
+			// Therefore substract (unoffsets.lines + 1) which marks the start of that transformation.
+			// Add +1 afterwards because total_offsets are 1-index-based.
+			message.fix.range[0] += total_offsets[fix_pos_start.line - unoffsets.lines + 2];
+			message.fix.range[1] += total_offsets[fix_pos_end.line - unoffsets.lines + 2];
 		}
 	}
+
 	// shift position reference forward according to offsets
+	// (aka: re-add the code that is originally prior to the code)
 	{
 		const { length, lines, last } = offsets;
 		if (message.line === 1) {
@@ -62,6 +82,7 @@ const transform_message = ({ transformed_code }, { unoffsets, dedent, offsets, r
 			message.fix.range[1] += length;
 		}
 	}
+
 	// make sure the fix doesn't include anything outside the range of the script
 	if (message.fix) {
 		if (message.fix.range[0] < range[0]) {
@@ -92,12 +113,17 @@ const get_identifier = str => (str && str.match(/^[^\s!"#%&\\'()*+,\-./:;<=>?@[\
 const is_valid_message = (block, message, translation) => {
 	switch (message.ruleId) {
 		case 'eol-last': return false;
+		case '@typescript-eslint/indent':
 		case 'indent': return !translation.options.template;
 		case 'linebreak-style': return message.line !== translation.end;
 		case 'no-labels': return get_identifier(get_referenced_string(block, message)) !== '$';
 		case 'no-restricted-syntax': return message.nodeType !== 'LabeledStatement' || get_identifier(get_referenced_string(block, message)) !== '$';
 		case 'no-self-assign': return !state.var_names.has(get_identifier(get_referenced_string(block, message)));
+		case 'no-undef': return get_referenced_string(block, message) !== '$$Generic';
 		case 'no-unused-labels': return get_referenced_string(block, message) !== '$';
+		case '@typescript-eslint/no-unused-vars':
+		case 'no-unused-vars': return !['$$Props', '$$Slots', '$$Events'].includes(get_referenced_string(block, message));
+		case '@typescript-eslint/quotes':
 		case 'quotes': return !translation.options.in_quoted_attribute;
 	}
 	return true;

@@ -12,7 +12,7 @@ An ESLint plugin for Hamber v3 components.
 ## Requirements
 
 - Hamber 3.2+
-- ESLint 6+
+- ESLint 8+
 
 ## Installation
 
@@ -41,7 +41,7 @@ module.exports = {
   ],
   overrides: [
     {
-      files: ['**/*.hamber'],
+      files: ['*.hamber'],
       processor: 'hamber3/hamber3'
     }
   ],
@@ -56,6 +56,72 @@ module.exports = {
 
 By default, this plugin needs to be able to `require('hamber/compiler')`. If ESLint, this plugin, and Hamber are all installed locally in your project, this should not be a problem.
 
+### Installation with TypeScript
+
+If you want to use TypeScript, you'll need a different ESLint configuration. In addition to the Hamber plugin, you also need the ESLint TypeScript parser and plugin. Install `typescript`, `@typescript-eslint/parser` and `@typescript-eslint/eslint-plugin` from npm and then adjust your config like this:
+
+```javascript
+module.exports = {
+  parser: '@typescript-eslint/parser', // add the TypeScript parser
+  plugins: [
+    'hamber3',
+    '@typescript-eslint' // add the TypeScript plugin
+  ],
+  overrides: [ // this stays the same
+    {
+      files: ['*.hamber'],
+      processor: 'hamber3/hamber3'
+    }
+  ],
+  rules: {
+    // ...
+  },
+  settings: {
+    'hamber3/typescript': () => require('typescript'), // pass the TypeScript package to the Hamber plugin
+    // OR
+    'hamber3/typescript': true, // load TypeScript as peer dependency
+    // ...
+  }
+};
+```
+
+If you also want to be able to use type-aware linting rules (which will result in slower linting, because the whole program needs to be compiled and type-checked), then you also need to add some `parserOptions` configuration. The values below assume that your ESLint config is at the root of your project next to your `tsconfig.json`. For more information, see [here](https://github.com/typescript-eslint/typescript-eslint/blob/master/docs/getting-started/linting/TYPED_LINTING.md).
+
+```javascript
+module.exports = {
+  // ...
+  parserOptions: { // add these parser options
+    tsconfigRootDir: __dirname,
+    project: ['./tsconfig.json'],
+    extraFileExtensions: ['.hamber'],
+  },
+  extends: [ // then, enable whichever type-aware rules you want to use
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:@typescript-eslint/recommended-requiring-type-checking'
+  ],
+  // ...
+};
+```
+
+There are some limitations to these type-aware rules currently. Specifically, checks in the context of reactive assignments and store subscriptions will report false positives or false negatives, depending on the rule. In the case of reactive assignments, you can work around this by explicitly typing the reactive variable. An example with the `no-unsafe-member-access` rule:
+
+```hamber
+<script lang="ts">
+  import { writable } from 'hamber/store';
+
+  const store = writable([]);
+  $store.length; // incorrect no-unsafe-member-access error
+
+  $: assignment = [];
+  assignment.length; // incorrect no-unsafe-member-access error
+  // You can work around this by doing
+  let another_assignment: string[];
+  $: another_assignment = [];
+  another_assignment.length; // OK
+</script>
+```
+
 ## Interactions with other plugins
 
 Care needs to be taken when using this plugin alongside others. Take a look at [this list of things you need to watch out for](OTHER_PLUGINS.md).
@@ -68,7 +134,7 @@ Passing a function as a value for a setting (which some of the settings below re
 
 ### `hamber3/ignore-warnings`
 
-This setting can be given a function that indicates whether to ignore a warning in the linting. The function will be passed a warning object and should return a boolean.
+This setting can be given a function that indicates whether to ignore a warning in the linting. The function will be passed a warning object and should return a boolean. Only warnings from the Hamber compiler itself can be filtered out through this function. Regular ESLint rules are configured/disabled through the corresponding ESLint settings.
 
 The default is to not ignore any warnings.
 
@@ -86,15 +152,25 @@ If you're using some sort of preprocessor on the component styles, then it's lik
 
 This setting can be given a function that accepts an object of attributes on a `<style>` tag (like that passed to a Hamber preprocessor) and returns whether to ignore the style block for the purposes of linting.
 
-The default is to not ignore any styles.
+The default is to ignore styles when the `<style>` tag has a `lang=` or `type=` attribute.
 
 ### `hamber3/named-blocks`
 
-When an [ESLint processor](https://eslint.org/docs/user-guide/configuring#specifying-processor) processes a file, it is able to output named code blocks, which can each have their own linting configuration. When this setting is enabled, the code extracted from `<script context='module'>` tag, the `<script>` tag, and the template are respectively given the block names `module.js`, `instance.js`, and `template.js`.
+When an [ESLint processor](https://eslint.org/docs/user-guide/configuring/plugins#specifying-processor) processes a file, it is able to output named code blocks, which can each have their own linting configuration. When this setting is enabled, the code extracted from `<script context='module'>` tag, the `<script>` tag, and the template are respectively given the block names `module.js`, `instance.js`, and `template.js`.
 
 This means that to override linting rules in Hamber components, you'd instead have to target `**/*.hamber/*.js`. But it also means that you can define an override targeting `**/*.hamber/*_template.js` for example, and that configuration will only apply to linting done on the templates in Hamber components.
 
 The default is to not use named code blocks.
+
+### `hamber3/typescript`
+
+If you use TypeScript inside your Hamber components and want ESLint support, you need to set this option. It expects a function returning an instance of the TypeScript package. This probably means doing `'hamber3/typescript': () => require('typescript')`.
+
+To support ESLint configuration files that are not written in CommonJS, this can also be set to `true`, which behaves the same as `() => require('typescript')`.
+
+For backwards compatibility, it also supports being passed the TypeScript package directly, but this is not generally recommended as it unnecessarily loads the package in some situations.
+
+The default is to not enable TypeScript support.
 
 ### `hamber3/compiler`
 

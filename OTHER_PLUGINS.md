@@ -16,8 +16,13 @@ These rules are known to not work correctly together with this plugin:
 - `import/no-duplicates`
 - `import/no-mutable-exports`
 - `import/no-unresolved` when using `hamber3/named-blocks`, pending [this issue](https://github.com/benmosher/eslint-plugin-import/issues/1415)
+- `import/prefer-default-export`
 
-If you're using them on other linted files, consider [adding `overrides` for them for Hamber components](https://eslint.org/docs/user-guide/configuring#disabling-rules-only-for-a-group-of-files).
+If you're using them on other linted files, consider [adding `overrides` for them for Hamber components](https://eslint.org/docs/user-guide/configuring/configuration-files#how-do-overrides-work).
+
+## `eslint-config-standard`
+
+This uses `eslint-plugin-import` by default, so the above applies.
 
 ## Others?
 
